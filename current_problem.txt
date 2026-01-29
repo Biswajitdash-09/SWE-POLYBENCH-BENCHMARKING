@@ -1,27 +1,22 @@
-Instance ID: sveltejs__svelte-597
+Instance ID: sveltejs__svelte-599
 Repository: sveltejs/svelte
 Language: JavaScript
-Task Category: Refactoring
+Task Category: Bug Fix
 
 PROBLEM STATEMENT:
-Using Rollup with shared helpers always includes transitionManager
-This is probably technically in Rollup's court, but if there's anything we can do here to make the bundler behave better, that would be nice to do.
+<textarea value='{{foo}}'> doesn't work
+[Repro here](https://svelte.technology/repl?version=1.20.2&gist=703b45513de90fe93bb47eafc61b3f8b) — the generated code is wrong:
 
-If you import any of the helpers in `shared.js` and bundle with Rollup with default settings, the `transitionManager` comes along too. I assume this has to do with it being an object instead of a function, and Rollup can't tell that it has no side effects.
-
-FWIW, UglifyJS is able to discern that this is unneeded code and remove it, but Butternut is not. So maybe this is even in Butternut's court.
-Using Rollup with shared helpers always includes transitionManager
-This is probably technically in Rollup's court, but if there's anything we can do here to make the bundler behave better, that would be nice to do.
-
-If you import any of the helpers in `shared.js` and bundle with Rollup with default settings, the `transitionManager` comes along too. I assume this has to do with it being an object instead of a function, and Rollup can't tell that it has no side effects.
-
-FWIW, UglifyJS is able to discern that this is unneeded code and remove it, but Butternut is not. So maybe this is even in Butternut's court.
+```diff
+if ( textarea_value_value !== ( textarea_value_value = state.foo ) ) {
+-  setAttribute( textarea, 'value', textarea_value_value );
++  textarea.value = textarea_value_value;
+}
+```
 
 
 HINTS:
-Ah, curses. Rollup should be detecting and removing that. It might need to be written in a slightly different way.
-
-Ideally Butternut would also detect and remove it, but the earlier it happens in the process the better.
-Ah, curses. Rollup should be detecting and removing that. It might need to be written in a slightly different way.
-
-Ideally Butternut would also detect and remove it, but the earlier it happens in the process the better.
+`<textarea>{{foo}}</textarea>` works, doesn't it? I'm not sure why we'd want to support `<textarea value='{{foo}}>` when `<textarea value='some text'>` doesn't work in regular HTML. I might be being overly pedantic.
+Because the way that you update the contents of a textarea is with `textarea.value = content` - I'd argue it's more natural (and certainly easier to implement!) than `<textarea>{{value}}</textarea>`
+Just ran into this issue moments ago, and I was about to open an issue about this. I'm glad you ran into this as well!
+I don't see a reason not to allow using `value`, adds parity with the other form elements and since this is a compiler it doesn't add more code to the output.
