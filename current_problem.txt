@@ -1,0 +1,27 @@
+Instance ID: sveltejs__svelte-597
+Repository: sveltejs/svelte
+Language: JavaScript
+Task Category: Refactoring
+
+PROBLEM STATEMENT:
+Using Rollup with shared helpers always includes transitionManager
+This is probably technically in Rollup's court, but if there's anything we can do here to make the bundler behave better, that would be nice to do.
+
+If you import any of the helpers in `shared.js` and bundle with Rollup with default settings, the `transitionManager` comes along too. I assume this has to do with it being an object instead of a function, and Rollup can't tell that it has no side effects.
+
+FWIW, UglifyJS is able to discern that this is unneeded code and remove it, but Butternut is not. So maybe this is even in Butternut's court.
+Using Rollup with shared helpers always includes transitionManager
+This is probably technically in Rollup's court, but if there's anything we can do here to make the bundler behave better, that would be nice to do.
+
+If you import any of the helpers in `shared.js` and bundle with Rollup with default settings, the `transitionManager` comes along too. I assume this has to do with it being an object instead of a function, and Rollup can't tell that it has no side effects.
+
+FWIW, UglifyJS is able to discern that this is unneeded code and remove it, but Butternut is not. So maybe this is even in Butternut's court.
+
+
+HINTS:
+Ah, curses. Rollup should be detecting and removing that. It might need to be written in a slightly different way.
+
+Ideally Butternut would also detect and remove it, but the earlier it happens in the process the better.
+Ah, curses. Rollup should be detecting and removing that. It might need to be written in a slightly different way.
+
+Ideally Butternut would also detect and remove it, but the earlier it happens in the process the better.

@@ -1,0 +1,7 @@
+{
+  "instance_id": "sveltejs__svelte-536",
+  "repo": "sveltejs/svelte",
+  "language": "JavaScript",
+  "task_category": "Bug Fix",
+  "problem_statement": "Parser does not accept if or each block argument in parentheses\nAttempting to parse `{{#if (condition)}}...{{/if}}` results in an `Expected }}` parsing error at the `)`. And attempting to parse `{{#each (list) as item}}...{{/each}}` results in an `Expected as` parsing error at the `)`.\n"
+}
