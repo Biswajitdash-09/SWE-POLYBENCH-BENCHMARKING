@@ -1,22 +1,8 @@
-Instance ID: sveltejs__svelte-599
+Instance ID: sveltejs__svelte-718
 Repository: sveltejs/svelte
-Language: JavaScript
-Task Category: Bug Fix
-
 PROBLEM STATEMENT:
-<textarea value='{{foo}}'> doesn't work
-[Repro here](https://svelte.technology/repl?version=1.20.2&gist=703b45513de90fe93bb47eafc61b3f8b) — the generated code is wrong:
+Whitespace inside elements is not being preserved inside loops
+Very related to bug #608.
 
-```diff
-if ( textarea_value_value !== ( textarea_value_value = state.foo ) ) {
--  setAttribute( textarea, 'value', textarea_value_value );
-+  textarea.value = textarea_value_value;
-}
-```
+Reproduction: https://svelte.technology/repl?version=1.25.0&gist=10dd087fc24ff3dbf326c06b04e0611a
 
-
-HINTS:
-`<textarea>{{foo}}</textarea>` works, doesn't it? I'm not sure why we'd want to support `<textarea value='{{foo}}>` when `<textarea value='some text'>` doesn't work in regular HTML. I might be being overly pedantic.
-Because the way that you update the contents of a textarea is with `textarea.value = content` - I'd argue it's more natural (and certainly easier to implement!) than `<textarea>{{value}}</textarea>`
-Just ran into this issue moments ago, and I was about to open an issue about this. I'm glad you ran into this as well!
-I don't see a reason not to allow using `value`, adds parity with the other form elements and since this is a compiler it doesn't add more code to the output.
