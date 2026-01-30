@@ -1,8 +1,112 @@
-Instance ID: sveltejs__svelte-718
+Instance ID: sveltejs__svelte-720
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-Whitespace inside elements is not being preserved inside loops
-Very related to bug #608.
+No select example?
+I have a select box in my component which binds a value using two-way bindings.
 
-Reproduction: https://svelte.technology/repl?version=1.25.0&gist=10dd087fc24ff3dbf326c06b04e0611a
+```javascript
+<select bind:value='duration'>
+        {{ #each durations as dur }}
+          <option value="{{ dur }}">{{ dur }} months</option>
+        {{ /each }}
+      </select>
+```
+
+The component is nested inside a modal component which can show and hide.
+
+It seems that when I hide and re-show the modal, whilst the 'duration' value has been persisted, the select has reset to the initial list item.
+
+It seems like the two-way binding doesn't bind the selected value correctly.
+
+It also appears that there is no `<select>` example available in the REPL.
+
+Is there another binding I require, or is this an issue?
+No select example?
+I have a select box in my component which binds a value using two-way bindings.
+
+```javascript
+<select bind:value='duration'>
+        {{ #each durations as dur }}
+          <option value="{{ dur }}">{{ dur }} months</option>
+        {{ /each }}
+      </select>
+```
+
+The component is nested inside a modal component which can show and hide.
+
+It seems that when I hide and re-show the modal, whilst the 'duration' value has been persisted, the select has reset to the initial list item.
+
+It seems like the two-way binding doesn't bind the selected value correctly.
+
+It also appears that there is no `<select>` example available in the REPL.
+
+Is there another binding I require, or is this an issue?
 
+
+HINTS:
+Yeah, you're right — no example in the REPL, which is ironic since you select examples with a two-way bound select element!
+
+Sounds like you've found a bug — are you able to reproduce it in the REPL? Thanks
+Managed to reproduce the issue:
+
+https://svelte.technology/repl?version=1.25.0&gist=d67ed619d2c308b9a20518fa694d64ac
+
+note that after toggling, the duration is still correctly rendered, but the select is defaulted.
+I have the same code in my project but without IF statement in the nested component and all work fine. I think IF break all again. 
+Yeah, the `if` removes and reinserts things from the DOM.
+
+The dropdown defaults to its original settings because the `selected` attribute on the currently selected option is not persisted (or set) by the `value` binding of its parent `select`, thus on re-render, the selected option defaults to its original setting.
+If anybody else runs into this, I've managed a pretty ugly workaround using event firing. I struggled for a while as it's a dealbreaker for our use case (I'm dealing with loan calculations, so I definitely can't have incorrect calculations showing.), but I eventually resorted to this, which does work until this issue is resolved:
+
+This resets my value to its original state, which in turn updates the calculated data to the correct values.
+```javascript
+    oncreate () {
+      this.refs.modal.on('show', e => {
+        // https://github.com/sveltejs/svelte/issues/711
+        this.refs.otherComponent.set({ myValue: 12 })
+      })
+    }
+```
+
+in my modal component, the show method now looks like this, so that an event is fired before the user sees the calculation:
+```javascript
+methods: {
+      show: function () {
+        this.fire('show')
+        this.set({ shown: true })
+      }
+}
+```
+Yeah, you're right — no example in the REPL, which is ironic since you select examples with a two-way bound select element!
+
+Sounds like you've found a bug — are you able to reproduce it in the REPL? Thanks
+Managed to reproduce the issue:
+
+https://svelte.technology/repl?version=1.25.0&gist=d67ed619d2c308b9a20518fa694d64ac
+
+note that after toggling, the duration is still correctly rendered, but the select is defaulted.
+I have the same code in my project but without IF statement in the nested component and all work fine. I think IF break all again. 
+Yeah, the `if` removes and reinserts things from the DOM.
+
+The dropdown defaults to its original settings because the `selected` attribute on the currently selected option is not persisted (or set) by the `value` binding of its parent `select`, thus on re-render, the selected option defaults to its original setting.
+If anybody else runs into this, I've managed a pretty ugly workaround using event firing. I struggled for a while as it's a dealbreaker for our use case (I'm dealing with loan calculations, so I definitely can't have incorrect calculations showing.), but I eventually resorted to this, which does work until this issue is resolved:
+
+This resets my value to its original state, which in turn updates the calculated data to the correct values.
+```javascript
+    oncreate () {
+      this.refs.modal.on('show', e => {
+        // https://github.com/sveltejs/svelte/issues/711
+        this.refs.otherComponent.set({ myValue: 12 })
+      })
+    }
+```
+
+in my modal component, the show method now looks like this, so that an event is fired before the user sees the calculation:
+```javascript
+methods: {
+      show: function () {
+        this.fire('show')
+        this.set({ shown: true })
+      }
+}
+```
