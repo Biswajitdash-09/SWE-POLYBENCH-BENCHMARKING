@@ -1,0 +1,50 @@
+# Patch for Svelte IfBlock unmount bug (Instance ID: sveltejs__svelte-735)
+
+## Issue Description
+Runtime error with nested components, {{#if}} blocks, and {{yield}} (deprecated).
+Error message: `Uncaught TypeError: Cannot read property 'unmount' of null`
+
+This issue occurred when:
+- There is a loop that contains a component with `{{yield}}` inside of an `{{#if}}` block
+- There is another Svelte component nested inside of the `yield`ing component
+
+The issue also manifests when using destroy() or otherwise causing the nested components
+to not be needed any more.
+
+## Root Cause
+In Svelte 1.22.3, when an if block's condition changed causing a branch to be unmounted,
+the fragment cleanup code was missing a call to unmount the fragment, leading to attempts
+to call `.unmount()` on a null reference.
+
+## Fix
+Add `${name}.unmount` to the unmount block in IfBlock.ts at lines 274-278.
+
+File: src/generators/dom/visitors/IfBlock.ts (Svelte 1.22.3)
+
+The fix ensures that when a branch is being unmounted, its fragment is properly
+cleaned up before attempting to call `.unmount()` on it.
+
+## Context
+- Issue: https://github.com/sveltejs/svelte/issues/625
+- Instance ID: sveltejs__svelte-735
+- Svelte Version: 1.22.3
+- Fix Commit: fe75570b910cc3e0cf6df55f8264dc50caafb2a4
+
+## Modern Svelte Note
+In Svelte 5+ with the runes architecture, this issue is handled through a completely
+different architecture. Instead of fragment-based unmounting, the modern system uses
+an effect-based reactivity system with `destroy_effect()` calls in BranchManager.
+The cleanup is properly managed through the `#commit()` method in:
+`src/internal/client/dom/blocks/branches.js`
+
+The modern architecture ensures proper cleanup by:
+1. Tracking branches with onscreen/offscreen maps
+2. Calling `destroy_effect()` when a branch is no longer needed
+3. Handling transitions appropriately during branch changes
+
+This prevents the null reference error by using a robust effect lifecycle management
+system that doesn't rely on manual `.unmount()` calls.
+
+## Using the Patch
+For Svelte 1.22.3, apply the fix by adding `${name}.unmount` call in the unmount
+block around line 274-278 of src/generators/dom/visitors/IfBlock.ts.

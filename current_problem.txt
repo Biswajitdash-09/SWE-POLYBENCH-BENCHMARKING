@@ -1,55 +1,40 @@
-Instance ID: sveltejs__svelte-733
+Instance ID: sveltejs__svelte-755
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-Store CSS hashed attribute in a variable
-A nice easy win — currently if you have a component with CSS, top-level elements get this treatment:
+"Uncaught TypeError: Cannot read property 'update' of null" when calling set in an event after destroy
+This manifests when using an evented object that has a listener that destroys the Component & a subsequent listener that sets a value on the Component.
 
-```js
-setAttribute( div, 'svelte-3599223440', '' );
-```
-
-If there's more than one top-level element, it would make more sense to do this instead:
-
-```js
-var cssAttr = 'svelte-3599223440';
-// ...
-setAttribute( div, cssAttr, '' );
-```
-
-Or even
-
-```js
-function encapsulateStyles ( node ) {
-  div.setAttribute( 'svelte-3599223440', '' );
-}
-// ...
-encapsulateStyles( div );
-```
-Store CSS hashed attribute in a variable
-A nice easy win — currently if you have a component with CSS, top-level elements get this treatment:
-
-```js
-setAttribute( div, 'svelte-3599223440', '' );
-```
-
-If there's more than one top-level element, it would make more sense to do this instead:
-
-```js
-var cssAttr = 'svelte-3599223440';
-// ...
-setAttribute( div, cssAttr, '' );
-```
-
-Or even
-
-```js
-function encapsulateStyles ( node ) {
-  div.setAttribute( 'svelte-3599223440', '' );
-}
-// ...
-encapsulateStyles( div );
-```
+https://svelte.technology/repl?version=1.27.0&gist=16c53dce350c0a67c6bb1ff8db61ab88
 
 
 HINTS:
+@btakita what should the intended behaviour be? And what's up man lol.
+Would a dev mode error like this solve the problem?
+
+> You cannot call `.set(...)` on a component that has been destroyed
+
 
+I'd rather it not throw an error.
+
+Right now, I shimmed a method that checks to see if the component is "active" before calling `set`.
+
+```
+export function set__svelte(C, ...rest) {
+  return C._fragment ? C.set(...rest) : C
+}
+export const set = set__svelte
+```
+What's the situation in which `set` is being called after `destroy`? Just wondering if there's a different way of getting at this, without adding a `this._destroyed` check for each `set` call (which certainly isn't the worst thing in the world, but good to avoid it if it's masking a separate problem)
+It's difficult to avoid this issue using events that are ordered by definition, as previously defined events may triggers `destroy` before a later defined event triggers `set`.
+
+Here are three areas where the logic could be handled:
+
+* Event handler ordering - imposes difficult & otherwise unnecessary constraints on the programmer
+* Guard clause in the event handler - Which is what I'm doing right now. It creates an otherwise unnecessary helper function, though it's relatively painless & could be a useful "seam" later on
+* `console.warn`
+* `this._destroyed` guard clause in svelte
+
+I'm ok with `console.warn`, even though it would still encourage me to have a helper function. Letting it throw an error would require debugging for somebody unfamiliar with the problem. Maybe put a link to this ticket, or a section in the Readme to resolve?
+
+I would slightly prefer the `this._destroyed` guard but now that there's a helper function, it's not that big of a deal.
+I debounce some method calls to the next animation frame, and in those methods I've been forced to check for `this._destroyed` before continuing.

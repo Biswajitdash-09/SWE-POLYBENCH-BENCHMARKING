@@ -1,0 +1,36 @@
+diff --git a/packages/svelte/src/compiler/phases/3-transform/server/visitors/shared/element.js b/packages/svelte/src/compiler/phases/3-transform/server/visitors/shared/element.js
+index origin..modified
+--- a/packages/svelte/src/compiler/phases/3-transform/server/visitors/shared/element.js
++++ b/packages/svelte/src/compiler/phases/3-transform/server/visitors/shared/element.js
+@@ -236,7 +236,7 @@ export function build_element_attributes(node, context, transform) {
+ 					context.state.template.push(
+ 						b.literal(
+ 							` ${attribute.name}${
+ 								is_boolean_attribute(name) && literal_value === true
+-									? ''
+-									: `="${literal_value === true ? '' : String(literal_value)}"`
++									? ''
++									: `="${literal_value === true ? '' : escape_html(String(literal_value), true)}"`
+ 							}`
+ 						)
+diff --git a/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/_config.js b/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/_config.js
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/_config.js
+@@ -0,0 +1,6 @@
++import { test } from './assert.js';
++
++export default test({
++	mode: ['server'],
++	ssrHtml: '<a href="mailto:hello@example.com">email</a><span title=""foo"">foo</span><div data-test="test@value&"quoted"">test</div>'
++});
+diff --git a/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/input.svelte b/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/input.svelte
+new file mode 100644
+index 0000000..0000000
+--- /dev/null
++++ b/packages/svelte/tests/runtime-browser/samples/attribute-ssr-escape/input.svelte
+@@ -0,0 +1,3 @@
++<a href='mailto:hello@example.com'>email</a>
++<span title='"foo"'>foo</span>
++<div data-test='test@value&"quoted"'>test</div>

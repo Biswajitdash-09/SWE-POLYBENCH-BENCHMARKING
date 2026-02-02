@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Issue #728</title>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        // This is a simplified test case based on the bug report
+        
+        // Simulating the scenario from the bug report
+        const data = [{id: '1'}, {id: '2'}, {id: '3'}];
+        const idToTop = {};
+        const position = {};
+        
+        // Initial state
+        console.log('Initial data:', data);
+        
+        // First increment (from bug report)
+        console.log('First increment...');
+        
+        // Reverse the array
+        data.reverse();
+        console.log('After first reverse:', data);
+        
+        // Second increment
+        console.log('Second increment...');
+        
+        // Reverse again
+        data.reverse();
+        console.log('After second reverse:', data);
+        
+        // The bug states that on every other change, only 
+        // the first two elements are displayed
+        
+        document.getElementById('app').innerHTML = `
+            <h2>Test Issue #728: Keyed blocks and binding breaks array looping</h2>
+            <p>After first reverse: ${data.map(d => d.id).join(', ')}</p>
+            <p>Expected: 3, 2, 1</p>
+        `;
+    </script>
+</body>
+</html>

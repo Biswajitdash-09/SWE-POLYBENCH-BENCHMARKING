@@ -1,0 +1,207 @@
+From: Implementation of "using refs in css" feature (sveltejs__svelte-738)
+Subject: Add support for using ref: selectors directly in CSS
+
+This patch implements the feature that allows developers to use `ref:` 
+directly in CSS selectors instead of needing separate class names.
+
+Example usage:
+    <div ref:container></div>
+    <style>
+      ref:container {
+        color: red
+      }
+    </style>
+
+The implementation:
+- Parses ref: directives and tracks ref names during analysis
+- Transforms CSS selectors from ref:container to [svelte-hash-container]
+- Adds scoping attributes to elements with refs during transformation
+- Marks ref selectors as used to avoid css_unused_selector warnings
+
+---
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/css/css-analyze.js b/packages/svelte/src/compiler/phases/2-analyze/css/css-analyze.js
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/css/css-analyze.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/css/css-analyze.js
+@@ -113,6 +113,24 @@ const css_visitors = {
+ 		}
+ 	},
+ 	ComplexSelector(node, context) {
++		// If the selector is a ref:pattern (e.g., ref:container), mark it as used
++		// These will be transformed to [svelte-hash-ref] selectors and don't need
++		// to match elements in the template during the pruning phase
++		if (node.children.length > 0) {
++			const first_child = node.children[0];
++			if (
++				first_child.selectors.length >= 2 &&
++				first_child.selectors[0].type === 'TypeSelector' &&
++				first_child.selectors[0].name === 'ref' &&
++				first_child.selectors[1].type === 'PseudoClassSelector'
++			) {
++				const ref_name = /** @type {AST.CSS.PseudoClassSelector} */ (first_child.selectors[1]).name;
++				// Add the ref name to the analysis so we know to add the attribute during transformation
++				context.state.analysis.refs.add(ref_name);
++				node.metadata.used = true;
++			}
++		}
++
+ 		context.next(); // analyse relevant selectors first
+ 
+ 		{
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/index.js b/packages/svelte/src/compiler/phases/2-analyze/index.js
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/index.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/index.js
+@@ -58,6 +58,7 @@ import { ConstTag } from './visitors/ConstTag.js';
+ import { SlotElement, SlotElement_analyzable } from './visitors/SlotElement.js';
+ import { SnippetBlock, SnippetBlock_analyzable } from './visitors/SnippetBlock.js';
+ import { Text } from './visitors/Text.js';
++import { RefDirective } from './visitors/RefDirective.js';
+ import { InlineComponent, InlineComponent_analyzable } from './visitors/InlineComponent.js';
+ import { AwaitBlock, AwaitBlock_analyzable } from './visitors/AwaitBlock.js';
+ import { BindDirective } from './visitors/BindDirective.js';
+@@ -204,6 +205,7 @@ const visitors = /** @type {Visitors<AST.SvelteNode, ComponentAnalysis>} */ (
+ 	SlotElement: SlotElement_analyzable,
+ 	SnippetBlock: SnippetBlock_analyzable,
+ 	Text: Text,
++	RefDirective: RefDirective,
+ 	InlineComponent: InlineComponent_analyzable,
+ 	AwaitBlock: AwaitBlock_analyzable,
+ 	BindDirective: BindDirective,
+@@ -511,6 +513,7 @@ export function analyze(options) {
+ 				keyframes: [],
+ 				names: new Set(),
+ 				elements: [],
++				refs: new Set(),
+ 				add_element(selector) {
+ 					this.elements.push(selector);
+ 				}
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/RefDirective.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/RefDirective.js
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/RefDirective.js
+@@ -0,0 +1,11 @@
++/** @import { ComponentAnalysis } from '../../types.js' */
++/** @import { AST } from '#compiler' */
++
++/**
++ * @param {AST.RefDirective} node
++ * @param {ComponentAnalysis} analysis
++ */
++export function RefDirective(node, analysis) {
++	// Track the ref name during the analysis phase
++	// so we can validate it against CSS ref: selectors
++	analysis.refs.add(node.name);
++}
+diff --git a/packages/svelte/src/compiler/phases/1-parse/state/element.js b/packages/svelte/src/compiler/phases/1-parse/state/element.js
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/phases/1-parse/state/element.js
++++ b/packages/svelte/src/compiler/phases/1-parse/state/element.js
+@@ -255,6 +255,7 @@ function get_directive_type(name) {
+ 	const type = map[name];
+ 	if (type) return type;
++	if (name === 'ref') return 'RefDirective';
+ 
+ 	return null;
+ }
+diff --git a/packages/svelte/src/compiler/types/template.d.ts b/packages/svelte/src/compiler/types/template.d.ts
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/types/template.d.ts
++++ b/packages/svelte/src/compiler/types/template.d.ts
+@@ -98,6 +98,13 @@ export type RenderTag = {
+ 	}
+ };
+ 
++export type RefDirective = {
++	type: 'RefDirective';
++	name: string;
++	start: number;
++	end: number;
++};
++
+ export type RegularElement = {
+ 	type: 'RegularElement';
+ 	name: string;
+@@ -659,6 +666,7 @@ export type Directive =
+ 	| ClassDirective
+ 	| TransitionDirective
+ 	| UseDirective
++	| RefDirective
+ 	| AnimationDirective
+ 	| InDirective
+ 	| OutDirective;
+diff --git a/packages/svelte/src/compiler/phases/3-transform/client/visitors/RegularElement.js b/packages/svelte/src/compiler/phases/3-transform/client/visitors/RegularElement.js
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/phases/3-transform/client/visitors/RegularElement.js
++++ b/packages/svelte/src/compiler/phases/3-transform/client/visitors/RegularElement.js
+@@ -139,6 +139,14 @@ export function visit_children(node, context) {
+ 
+ 				context.next();
+ 				break;
++			case 'RefDirective': {
++				// Add a scoping attribute to match the CSS ref:selector
++				// ref:container becomes svelte-hash-container
++				const css_hash = context.state.analysis.css.hash;
++				const ref_name = attribute.name;
++				context.state.template.set_prop(`${css_hash}-${ref_name}`, '');
++				break;
++			}
+ 			case 'LetDirective':
+ 			case 'SpreadAttribute':
+ 				break;
+diff --git a/packages/svelte/src/compiler/phases/3-transform/css/index.js b/packages/svelte/src/compiler/phases/3-transform/css/index.js
+index 1234567..89abcdef 100644
+--- a/packages/svelte/src/compiler/phases/3-transform/css/index.js
++++ b/packages/svelte/src/compiler/phases/3-transform/css/index.js
+@@ -843,6 +843,24 @@ const visitors = /** @type {Visitors<AST.CSS.Node, CssState>} */ ({
+ 			context.state.code.prepend(code);
+ 		}
+ 
++		// Transform ref:container selectors to [svelte-hash-container] attribute selectors
++		if (
++			relative_selector.selectors.length >= 2 &&
++			relative_selector.selectors[0].type === 'TypeSelector' &&
++			relative_selector.selectors[0].name === 'ref' &&
++			relative_selector.selectors[1].type === 'PseudoClassSelector'
++		) {
++			const pseudo_selector = /** @type {AST.CSS.PseudoClassSelector} */ (
++				relative_selector.selectors[1]
++			);
++			const ref_name = pseudo_selector.name;
++			// Transform ref:container to [svelte-hash-container]
++			context.state.code.update(
++				relative_selector.selectors[0].start,
++				relative_selector.selectors[1].end,
++				`[${context.state.hash}-${ref_name}]`
++			);
++			continue;
++		}
++
+ 		for (const selector of relative_selector.selectors) {
+ 			if (
+ 				selector.type === 'TypeSelector' &&
+diff --git a/packages/svelte/tests/css/samples/ref-selector/expected.css b/packages/svelte/tests/css/samples/ref-selector/expected.css
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/packages/svelte/tests/css/samples/ref-selector/expected.css
+@@ -0,0 +1,5 @@
++
++
++  [svelte-xyz-container] {
++    color: red
++  }
+diff --git a/packages/svelte/tests/css/samples/ref-selector/input.svelte b/packages/svelte/tests/css/samples/ref-selector/input.svelte
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/packages/svelte/tests/css/samples/ref-selector/input.svelte
+@@ -0,0 +1,6 @@
++<div ref:container></div>
++
++<style>
++  ref:container {
++    color: red
++  }
++</style>
