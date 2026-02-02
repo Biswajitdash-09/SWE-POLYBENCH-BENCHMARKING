@@ -1,0 +1,89 @@
+From poly@polyflo <poly@polyflo>
+Date: Mon, 2 Feb 2026 17:07:00 +0000
+Subject: [PATCH] Fix $set after $destroy bug with guard clause and warning
+
+This fix addresses the issue where calling $set() on a component
+after it has been destroyed could cause errors. The implementation
+adds a guard clause to prevent this operation and shows a warning
+in DEV mode.
+
+The fix implements the preferred solution mentioned in the original
+issue tracker: a conditional check (#destroyed) before performing
+the $set operation.
+
+---
+
+diff --git a/packages/svelte/messages/client-warnings/warnings.md b/packages/svelte/messages/client-warnings/warnings.md
+index 1234567..abcdefg 100644
+--- a/packages/svelte/messages/client-warnings/warnings.md
++++ b/packages/svelte/messages/client-warnings/warnings.md
+@@ -220,6 +220,10 @@ ## lifecycle_double_unmount
+ 
+ > Tried to unmount a component that was not mounted
+ 
++## lifecycle_set_after_destroy
++
++> Tried to call `$set()` on a component that was already destroyed
++
+ ## ownership_invalid_binding
+ 
+ > %parent% passed property `%prop%` to %child% with `bind:`, but its parent component %owner% did not declare `%prop%` as a binding. Consider creating a binding between %owner% and %parent% (e.g. `bind:%prop%={...}` instead of `%prop%={...}`)
+
+diff --git a/packages/svelte/src/internal/client/warnings.js b/packages/svelte/src/internal/client/warnings.js
+index 1234567..abcdefg 100644
+--- a/packages/svelte/src/internal/client/warnings.js
++++ b/packages/svelte/src/internal/client/warnings.js
+@@ -175,3 +175,18 @@ export function lifecycle_double_unmount() {
+ 		console.warn(`https://svelte.dev/e/lifecycle_double_unmount`);
+ 	}
+ }
++
++/**
++ * Tried to call `$set()` on a component that was already destroyed
++ */
++export function lifecycle_set_after_destroy() {
++	if (DEV) {
++		console.warn(`%c[svelte] lifecycle_set_after_destroy\n%cTried to call \`$set()\` on a component that was already destroyed\nhttps://svelte.dev/e/lifecycle_set_after_destroy`, bold, normal);
++	} else {
++		console.warn(`https://svelte.dev/e/lifecycle_set_after_destroy`);
++	}
++}
+
+diff --git a/packages/svelte/src/legacy/legacy-client.js b/packages/svelte/src/legacy/legacy-client.js
+index 1234567..abcdefg 100644
+--- a/packages/svelte/src/legacy/legacy-client.js
++++ b/packages/svelte/src/legacy/legacy-client.js
+@@ -72,6 +72,9 @@ class Svelte4Component {
+ 	/** @type {Record<string, any>} */
+ 	#instance;
+ 
++	/** @type {boolean} */
++	#destroyed = false;
++
+ 	/**
+ 	 * @param {ComponentConstructorOptions & {
+ 	 *  component: any;
+@@ -156,11 +159,15 @@ class Svelte4Component {
+ 
+ 	/** @param {Record<string, any>} props */
+ 	$set(props) {
++		if (this.#destroyed) {
++			if (DEV) {
++				w.lifecycle_set_after_destroy();
++			}
++			return;
++		}
+ 		this.#instance.$set(props);
+ 	}
+ 
+ 	/**
+ 	 * @param {string} event
+ 	 * @param {(...args: any[]) => any} callback
+@@ -184,6 +191,7 @@ class Svelte4Component {
+ 	}
+ 
+ 	$destroy() {
++		this.#destroyed = true;
+ 		this.#instance.$destroy();
+ 	}
+ }

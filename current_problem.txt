@@ -1,40 +1,78 @@
-Instance ID: sveltejs__svelte-755
+Instance ID: sveltejs__svelte-764
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-"Uncaught TypeError: Cannot read property 'update' of null" when calling set in an event after destroy
-This manifests when using an evented object that has a listener that destroys the Component & a subsequent listener that sets a value on the Component.
+Uncaught Error: NotFoundError: DOM Exception 8 in {{#each}}
+<!--
+Thanks for raising an issue! (For *questions*, we recommend instead using https://stackoverflow.com and adding the 'svelte' tag.)
 
-https://svelte.technology/repl?version=1.27.0&gist=16c53dce350c0a67c6bb1ff8db61ab88
+To help us help you, if you've found a bug please consider the following:
+
+* If you can demonstrate the bug using https://svelte.technology/repl, please do.
+* If that's not possible, we recommend creating a small repo that illustrates the problem.
+* Make sure you include information about the browser, and which version of Svelte you're using
+
+Reproductions should be small, self-contained, correct examples – http://sscce.org.
+
+Occasionally, this won't be possible, and that's fine – we still appreciate you raising the issue. But please understand that Svelte is run by unpaid volunteers in their free time, and issues that follow these instructions will get fixed faster.
+
+If you have a stack trace to include, we recommend putting inside a `<details>` block for the sake of the thread's readability:
+
+<details>
+  <summary>Stack trace</summary>
+
+  Stack trace goes here...
+</details>
+-->
+`Uncaught Error: NotFoundError: DOM Exception 8`, stack trace:
+
+![image](https://user-images.githubusercontent.com/451903/29228400-786c8e3a-7ed1-11e7-82ac-1d32ed73f1ac.png)
+
+The relevant code looks like 
+
+    <div class='tbody'>
+     {{#each items as item, y}}
+      <div class='tr'>
+        {{y}}
+      </div>
+     {{/each}}
+    </div>
+
+`items` is initially `[]`, then it's `this.set({items: someArray})`.
+
+I tried to reproduce in the REPL but it works there. *(Managed to [repro in the REPL](https://svelte.technology/repl?version=1.29.1&gist=b8e1568c2c7d28ddb171f02ef560ba70))*
+
+**Browser**: Chrome v27
+**Svelte**: v`1.29.1`
+    
+
+Sorry I realise this bug report is not 100%, what other info would be helpful?
 
 
 HINTS:
-@btakita what should the intended behaviour be? And what's up man lol.
-Would a dev mode error like this solve the problem?
+This is a guess, but maybe `target` isn't a DOM node? This can happen if you do
 
-> You cannot call `.set(...)` on a component that has been destroyed
+```js
+import App from './App.html';
 
-
-I'd rather it not throw an error.
-
-Right now, I shimmed a method that checks to see if the component is "active" before calling `set`.
-
+new App({
+  target: document.querySelector('.does-not-exist')
+});
 ```
-export function set__svelte(C, ...rest) {
-  return C._fragment ? C.set(...rest) : C
-}
-export const set = set__svelte
-```
-What's the situation in which `set` is being called after `destroy`? Just wondering if there's a different way of getting at this, without adding a `this._destroyed` check for each `set` call (which certainly isn't the worst thing in the world, but good to avoid it if it's masking a separate problem)
-It's difficult to avoid this issue using events that are ordered by definition, as previously defined events may triggers `destroy` before a later defined event triggers `set`.
 
-Here are three areas where the logic could be handled:
+Can happen if the selector contains a typo. Compiling with `dev: true` should catch this error, if that's what's happening.
+I was able to reproduce this on the REPL actually (Firefox, if that matters), but I don't have time right now to dig into it.
+In the screenshot `target` is visible on the right (Scope Variables), it appears to be the outer div. However `node` is undefined
 
-* Event handler ordering - imposes difficult & otherwise unnecessary constraints on the programmer
-* Guard clause in the event handler - Which is what I'm doing right now. It creates an otherwise unnecessary helper function, though it's relatively painless & could be a useful "seam" later on
-* `console.warn`
-* `this._destroyed` guard clause in svelte
+The component itself renders fine initially, this only happens at the `this.set({items})` call
+Repro (also in Chrome v60): https://svelte.technology/repl?version=1.29.1&gist=b8e1568c2c7d28ddb171f02ef560ba70
+I lied, I ended up digging into this very slightly - when a new value for `items` is set, we're running this code:
 
-I'm ok with `console.warn`, even though it would still encourage me to have a helper function. Letting it throw an error would require debugging for somebody unfamiliar with the problem. Maybe put a link to this ticket, or a section in the Readme to resolve?
+```javascript
+				for ( var i = each_block_iterations.length; i < each_block_value.length; i += 1 ) {
+					each_block_iterations[i] = create_each_block( state, each_block_value, each_block_value[i], i, component );
+					each_block_iterations[i].mount( div, null );
+				}
+```
 
-I would slightly prefer the `this._destroyed` guard but now that there's a helper function, it's not that big of a deal.
-I debounce some method calls to the next animation frame, and in those methods I've been forced to check for `this._destroyed` before continuing.
+We're not calling `.create()` on the each_block, so when we call `.mount` on it, we run `insertNode( div, target, anchor );`, and `div` is still undefined.
+Inserting a `.create()` call [here](https://github.com/sveltejs/svelte/blob/dff1cb5fe33acddd37e72769414b89e0e65c77c6/src/generators/dom/visitors/EachBlock.ts#L442) does seem to give us the correct behavior (and none of the unit tests fail) - but I'm still not sure why this didn't come up before now, it seems like a pretty normal usage of the framework. That's the code that's been getting generated for [a while](https://github.com/sveltejs/svelte/commit/950f2ce2fda65b16226f9f2152b2e29abdcba842#diff-bfd4dd5aad1af7eabb7666c8485170d1R211). Playing with this in the REPL, it looks like like this issue arose in 1.23.0, considerably later than the above code.
