@@ -1,0 +1,87 @@
+diff --git a/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/_config.js b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/_config.js
+new file mode 100644
+index 00000000..00000000
+--- /dev/null
++++ b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/_config.js
+@@ -0,0 +1,55 @@
++import { mount, flushSync } from 'svelte';
++import { test } from '../../assert';
++import App from './App.svelte';
++
++export default test({
++	async test({ target, assert }) {
++		// Create a target with existing children
++		const beforeAnchor = document.createElement('p');
++		beforeAnchor.textContent = 'Before anchor';
++		target.appendChild(beforeAnchor);
++
++		const anchor = document.createElement('div');
++		anchor.id = 'anchor';
++		anchor.textContent = 'Anchor element';
++		target.appendChild(anchor);
++
++		const afterAnchor = document.createElement('p');
++		afterAnchor.textContent = 'After anchor';
++		target.appendChild(afterAnchor);
++
++		// Mount the component with anchor - it should be inserted BEFORE the anchor
++		const app = mount(App, { 
++			target, 
++			anchor,
++			props: { text: 'Mounted Component' }
++		});
++
++		// Verify the component is mounted before the anchor element
++		const componentElement = target.querySelector('.mounted-component');
++		assert.exists(componentElement);
++		assert.equal(componentElement?.textContent, 'Mounted Component');
++
++		// Verify the component is positioned correctly relative to the anchor
++		assert.equal(componentElement?.nextSibling, anchor);
++		assert.equal(anchor.previousSibling, componentElement);
++		assert.equal(beforeAnchor.nextSibling, componentElement);
++		assert.equal(anchor.nextSibling, afterAnchor);
++
++		// Verify the test setup by checking all children
++		const children = Array.from(target.children);
++		assert.equal(children[0], beforeAnchor);
++		assert.equal(children[1], componentElement);
++		assert.equal(children[2], anchor);
++		assert.equal(children[3], afterAnchor);
++
++		// Update the component
++		flushSync(() => {
++			app.text = 'Updated Component';
++		});
++
++		assert.equal(componentElement?.textContent, 'Updated Component');
++
++		// Unmount
++		await app.$destroy?.();
++	}
++});
+diff --git a/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/App.svelte b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/App.svelte
+new file mode 100644
+index 00000000..00000000
+--- /dev/null
++++ b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/App.svelte
+@@ -0,0 +1,7 @@
++<script>
++	let { text = '' } = $props();
++</script>
++
++<div class="mounted-component">
++	{text}
++</div>
+diff --git a/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/main.svelte b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/main.svelte
+new file mode 100644
+index 00000000..00000000
+--- /dev/null
++++ b/packages/svelte/tests/runtime-browser/samples/mount-with-anchor/main.svelte
+@@ -0,0 +1,5 @@
++<script>
++	// This test file verifies that the `anchor` parameter works correctly
++	// when mounting components. The test logic is in _config.js
++</script>
++
++<slot />
