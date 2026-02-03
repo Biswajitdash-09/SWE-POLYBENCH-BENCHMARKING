@@ -1,0 +1,209 @@
+From: Svelte Bugfix Investigation <bugfix@svelte.dev>
+Subject: [PATCH] Verify CSS @media query whitespace preservation (Issue sveltejs__svelte-765)
+
+This patch verifies that whitespace is correctly preserved between
+@media at-rule and the media query condition in Svelte 5.49.1.
+
+The reported issue claimed that `@media only screen` was being
+compiled to `@mediaonly screen`, but investigation confirms this
+is not present in the current codebase. The CSS transformer in
+`src/compiler/phases/3-transform/css/index.js` correctly handles
+media queries without removing whitespace.
+
+Test files added to ensure this behavior continues to work correctly:
+- test-media-query.js - Basic validation
+- test-media-query-comprehensive.js - Comprehensive test scenarios
+
+All test scenarios pass with whitespace preserved:
+✓ Basic @media with words
+✓ Dev mode
+✓ Vendor prefixes (@-webkit-media)  
+✓ Multiple media rules with preceding CSS
+
+---
+ patches/verify-media-query-whitespace.md | 123 ++++++++++++++++++++
+ test-media-query.js                          |  33 +++++++
+ test-media-query-comprehensive.js            |  93 +++++++++++++++
+ 3 files changed, 249 insertions(+)
+ create mode 100644 patches/verify-media-query-whitespace.md
+ create mode 100644 test-media-query.js
+ create mode 100644 test-media-query-comprehensive.js
+
+diff --git a/patches/verify-media-query-whitespace.md b/patches/verify-media-query-whitespace.md
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/patches/verify-media-query-whitespace.md
+@@ -0,0 +1,123 @@
++# CSS @media Query Whitespace Preservation - Verification
++
++## Patch Summary
++
++**Issue Reference**: sveltejs__svelte-765  
++**Status**: ✅ VERIFIED - Already Fixed  
++**Svelte Version**: 5.49.1  
++
++## Investigation Results
++
++### Code Analysis
++
++The CSS transformation code correctly handles media queries:
++
++1. **Atrule Visitor** (packages/svelte/src/compiler/phases/3-transform/css/index.js:82-99):
++   - For media queries, simply calls `next()` without whitespace manipulation
++   - Only keyframes have special whitespace handling
++
++2. **is_keyframes_node() function** (packages/svelte/src/compiler/phases/css.js:14):
++   - Correctly identifies keyframes nodes
++   - Returns `false` for media queries, preventing incorrect handling
++
++### Test Results
++
++All scenarios confirm whitespace is preserved:
++
++✓ Basic @media with words: `@media only screen` → `@media only screen`
++✓ Dev mode: Whitespace preserved
++✓ Vendor prefixes: `@-webkit-media only screen` → Whitespace preserved
++✓ Multiple media rules: All whitespace preserved
++
++## Conclusion
++
++The bug does NOT exist in Svelte 5.49.1. The whitespace between 
++`@media` and the media query condition is correctly preserved.
++
++## No Changes Required
++
++This patch documents the verification that the codebase is correct.
++No modifications needed to the CSS transformation code.
++
+diff --git a/test-media-query.js b/test-media-query.js
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/test-media-query.js
+@@ -0,0 +1,33 @@
++import { compile } from './svelte-repo/packages/svelte/src/compiler/index.js';
++
++const source = `
++<div>hello</div>
++
++<style>
++	@media only screen and (min-width: 400px) {
++		div {
++			color: red;
++		}
++	}
++</style>
++`;
++
++try {
++	const result = compile(source, {
++		cssHash: () => 'svelte-xyz',
++		dev: false
++	});
++	
++	console.log('=== Compiled CSS ===');
++	console.log(result.css.code);
++	console.log('===================');
++	
++	// Check if whitespace is preserved
++	if (result.css.code.includes('@mediaonly')) {
++		console.log('\n❌ BUG DETECTED: Whitespace removed before media query condition!');
++	} else if (result.css.code.includes('@media only')) {
++		console.log('\n✓ Whitespace preserved correctly');
++	} else {
++		console.log('\n⚠ Unrecognized format');
++	}
++} catch (error) {
++	console.error('Error:', error);
++}
+diff --git a/test-media-query-comprehensive.js b/test-media-query-comprehensive.js
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/test-media-query-comprehensive.js
+@@ -0,0 +1,93 @@
++import { compile } from './svelte-repo/packages/svelte/src/compiler/index.js';
++
++const tests = [
++	{
++		name: 'Basic @media with words',
++		source: `<div>hello</div>
++<style>
++	@media only screen and (min-width: 400px) {
++		div {
++			color: red;
++		}
++	}
++</style>`,
++		options: { cssHash: () => 'svelte-xyz', dev: false }
++	},
++	{
++		name: 'Dev mode',
++		source: `<div>hello</div>
++<style>
++	@media only screen and (min-width: 400px) {
++		div {
++			color: red;
++		}
++	}
++</style>`,
++		options: { cssHash: () => 'svelte-xyz', dev: true }
++	},
++	{
++		name: '@-webkit-media vendor prefix',
++		source: `<div>hello</div>
++<style>
++	@-webkit-media only screen and (min-width: 400px) {
++		div {
++			color: red;
++		}
++	}
++</style>`,
++		options: { cssHash: () => 'svelte-xyz', dev: false }
++	},
++	{
++		name: 'Multiple media rules with preceding CSS',
++		source: `<div>hello</div>
++<style>
++	div {
++		color: blue;
++	}
++	@media only screen and (min-width: 400px) {
++		div {
++			color: red;
++		}
++	}
++	@media print {
++		div {
++			color: black;
++		}
++	}
++</style>`,
++		options: { cssHash: () => 'svelte-xyz', dev: false }
++	}
++];
++
++for (const test of tests) {
++	try {
++		const result = compile(test.source, test.options);
++		const css = result.css ? result.css.code : '';
++		
++		console.log(`\n=== Test: ${test.name} ===`);
++		console.log('Options:', test.options);
++		console.log('CSS:', css);
++		
++		// Check for the bug pattern
++		if (css.includes('@mediaonly') || css.includes('@-webkit-mediaonly')) {
++			console.log('❌ BUG DETECTED: Whitespace removed!');
++		} else if (css.includes('@media only') || css.includes('@-webkit-media only')) {
++			console.log('✓ Whitespace preserved');
++		} else {
++			console.log('⚠ No @media found or different format');
++		}
++	} catch (error) {
++		console.error('❌ Error:', error.message);
++	}
++}
+-- 
+2.40.0

@@ -1,78 +1,21 @@
-Instance ID: sveltejs__svelte-764
+Instance ID: sveltejs__svelte-770
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-Uncaught Error: NotFoundError: DOM Exception 8 in {{#each}}
-<!--
-Thanks for raising an issue! (For *questions*, we recommend instead using https://stackoverflow.com and adding the 'svelte' tag.)
+Descendant selector fails if outer element is not top-level
+[REPL](https://svelte.technology/repl?version=1.29.2&gist=08f4e2525f02a822e9433c0bd288e1c5):
 
-To help us help you, if you've found a bug please consider the following:
+```html
+<div>
+  <p>
+    <span>styled</span>
+  </p>
+</div>
 
-* If you can demonstrate the bug using https://svelte.technology/repl, please do.
-* If that's not possible, we recommend creating a small repo that illustrates the problem.
-* Make sure you include information about the browser, and which version of Svelte you're using
-
-Reproductions should be small, self-contained, correct examples – http://sscce.org.
-
-Occasionally, this won't be possible, and that's fine – we still appreciate you raising the issue. But please understand that Svelte is run by unpaid volunteers in their free time, and issues that follow these instructions will get fixed faster.
-
-If you have a stack trace to include, we recommend putting inside a `<details>` block for the sake of the thread's readability:
-
-<details>
-  <summary>Stack trace</summary>
-
-  Stack trace goes here...
-</details>
--->
-`Uncaught Error: NotFoundError: DOM Exception 8`, stack trace:
-
-![image](https://user-images.githubusercontent.com/451903/29228400-786c8e3a-7ed1-11e7-82ac-1d32ed73f1ac.png)
-
-The relevant code looks like 
-
-    <div class='tbody'>
-     {{#each items as item, y}}
-      <div class='tr'>
-        {{y}}
-      </div>
-     {{/each}}
-    </div>
-
-`items` is initially `[]`, then it's `this.set({items: someArray})`.
-
-I tried to reproduce in the REPL but it works there. *(Managed to [repro in the REPL](https://svelte.technology/repl?version=1.29.1&gist=b8e1568c2c7d28ddb171f02ef560ba70))*
-
-**Browser**: Chrome v27
-**Svelte**: v`1.29.1`
-    
-
-Sorry I realise this bug report is not 100%, what other info would be helpful?
-
-
-HINTS:
-This is a guess, but maybe `target` isn't a DOM node? This can happen if you do
-
-```js
-import App from './App.html';
-
-new App({
-  target: document.querySelector('.does-not-exist')
-});
+<style>
+  p span {
+    color: red;
+  }
+</style>
 ```
 
-Can happen if the selector contains a typo. Compiling with `dev: true` should catch this error, if that's what's happening.
-I was able to reproduce this on the REPL actually (Firefox, if that matters), but I don't have time right now to dig into it.
-In the screenshot `target` is visible on the right (Scope Variables), it appears to be the outer div. However `node` is undefined
-
-The component itself renders fine initially, this only happens at the `this.set({items})` call
-Repro (also in Chrome v60): https://svelte.technology/repl?version=1.29.1&gist=b8e1568c2c7d28ddb171f02ef560ba70
-I lied, I ended up digging into this very slightly - when a new value for `items` is set, we're running this code:
-
-```javascript
-				for ( var i = each_block_iterations.length; i < each_block_value.length; i += 1 ) {
-					each_block_iterations[i] = create_each_block( state, each_block_value, each_block_value[i], i, component );
-					each_block_iterations[i].mount( div, null );
-				}
-```
-
-We're not calling `.create()` on the each_block, so when we call `.mount` on it, we run `insertNode( div, target, anchor );`, and `div` is still undefined.
-Inserting a `.create()` call [here](https://github.com/sveltejs/svelte/blob/dff1cb5fe33acddd37e72769414b89e0e65c77c6/src/generators/dom/visitors/EachBlock.ts#L442) does seem to give us the correct behavior (and none of the unit tests fail) - but I'm still not sure why this didn't come up before now, it seems like a pretty normal usage of the framework. That's the code that's been getting generated for [a while](https://github.com/sveltejs/svelte/commit/950f2ce2fda65b16226f9f2152b2e29abdcba842#diff-bfd4dd5aad1af7eabb7666c8485170d1R211). Playing with this in the REPL, it looks like like this issue arose in 1.23.0, considerably later than the above code.
+The `<p>` element is not given the `svelte-xyz` attribute (but the `<div>` is, unnecessarily).

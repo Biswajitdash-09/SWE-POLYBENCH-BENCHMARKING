@@ -1,0 +1,62 @@
+From: Svelte IE11 Range Input Binding Fix
+Subject: Fix range input binding for IE11 (issue #766)
+
+IE11 doesn't fire the 'input' event on range inputs during drag, only 'change'.
+This fix makes range inputs listen to both 'input' and 'change' events to ensure
+compatibility with IE11 while maintaining proper behavior in modern browsers.
+
+--- a/packages/svelte/src/internal/client/dom/elements/bindings/shared.js
++++ b/packages/svelte/src/internal/client/dom/elements/bindings/shared.js
+@@ -51,18 +51,24 @@ export function without_reactive_context(fn) {
+ }
+ 
+ /**
+- * Listen to the given event, and then instantiate a global form reset listener if not already done,
+- * to notify all bindings when the form is reset
++ * Listen to the given event(s), and then instantiate a global form reset listener if not already done,
++ * to notify all bindings when the form is reset
+  * @param {HTMLElement} element
+- * @param {string} event
++ * @param {string | string[]} event
+  * @param {(is_reset?: true) => void} handler
+  * @param {(is_reset?: true) => void} [on_reset]
+  */
+ export function listen_to_event_and_reset_event(element, event, handler, on_reset = handler) {
++	const events = Array.isArray(event) ? event : [event];
++	
++	for (const name of events) {
++		element.addEventListener(name, () => without_reactive_context(handler));
++	}
++	
+ 	// @ts-expect-error
+ 	const prev = element.__on_r;
+ 	if (prev) {
+ 		// special case for checkbox that can have multiple binds (group & checked)
+ 		// @ts-expect-error
+ 		element.__on_r = () => {
+ 			prev();
+ 			on_reset(true);
+ 		};
+ 	} else {
+ 		// @ts-expect-error
+ 		element.__on_r = () => on_reset(true);
+ 	}
+ 
+ 	add_form_reset_listener();
+ }
+ 
+--- a/packages/svelte/src/internal/client/dom/elements/bindings/input.js
++++ b/packages/svelte/src/internal/client/dom/elements/bindings/input.js
+@@ -19,8 +19,12 @@ export function bind_value(input, get, set = get) {
+ 	var batches = new WeakSet();
+ 
+-	listen_to_event_and_reset_event(input, 'input', async (is_reset) => {
++	// IE11 doesn't fire 'input' event for range inputs, only 'change'
++	// We listen to both for compatibility (issue #766)
++	listen_to_event_and_reset_event(
++		input,
++		input.type === 'range' ? ['input', 'change'] : 'input',
++		async (is_reset) => {
+ 		if (DEV && input.type === 'checkbox') {
+ 			// TODO should this happen in prod too?
+ 			e.bind_invalid_checkbox_value();

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test @media Query</title>
+    <style>
+        /* Test the @media query with words in it */
+        @media only screen and (min-width: 400px) {
+            .test {
+                color: red;
+            }
+        }
+
+        .test {
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+    <div class="test">This should turn red if screen width >= 400px, otherwise blue</div>
+
+    <script>
+        // Let's check if the browser accepts the CSS as-is
+        console.log('CSS parsed successfully');
+    </script>
+</body>
+</html>
