@@ -1,23 +1,17 @@
-Instance ID: sveltejs__svelte-786
+Instance ID: sveltejs__svelte-792
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-CSS selector removal causing style errors
-[REPL](https://svelte.technology/repl?version=1.31.0&gist=ad2b365b960c0273a8565114faebcf28):
+<slot> can be nested
+I misread this — it turns out [you can nest](https://webkit.org/blog/4096/introducing-shadow-dom-api/) `<slot>` elements in web components, so we should too:
 
 ```html
-<!--<p class='foo'>foo</p>-->
-<p class='bar'>bar</p>
-<p class='baz'>baz</p>
-
-<style>
-	.foo, .bar, .baz {
-		color: red;
-	}
-</style>
+<b>Name</b>:
+<slot name="fullName">
+    <slot name="firstName"></slot>
+    <slot name="lastName"></slot>
+</slot><br>
+<b>Email</b>: <slot name="email">Unknown</slot><br>
+<b>Address</b>: <slot name="address">Unknown</slot>
 ```
 
-The `.foo` gets removed, but not the following comma, so this is the resulting broken CSS:
-
-```css
-,.bar[svelte-680739708],.baz[svelte-680739708]{color:red}
-```
+If no `slot='fullName'` element was provided, it would render the `slot='firstName'` and `slot='lastName'` ones instead. Should be straightforward, I *think* it's just a case of removing the validation.
