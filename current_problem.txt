@@ -1,21 +1,23 @@
-Instance ID: sveltejs__svelte-770
+Instance ID: sveltejs__svelte-786
 Repository: sveltejs/svelte
 PROBLEM STATEMENT:
-Descendant selector fails if outer element is not top-level
-[REPL](https://svelte.technology/repl?version=1.29.2&gist=08f4e2525f02a822e9433c0bd288e1c5):
+CSS selector removal causing style errors
+[REPL](https://svelte.technology/repl?version=1.31.0&gist=ad2b365b960c0273a8565114faebcf28):
 
 ```html
-<div>
-  <p>
-    <span>styled</span>
-  </p>
-</div>
+<!--<p class='foo'>foo</p>-->
+<p class='bar'>bar</p>
+<p class='baz'>baz</p>
 
 <style>
-  p span {
-    color: red;
-  }
+	.foo, .bar, .baz {
+		color: red;
+	}
 </style>
 ```
 
-The `<p>` element is not given the `svelte-xyz` attribute (but the `<div>` is, unnecessarily).
+The `.foo` gets removed, but not the following comma, so this is the resulting broken CSS:
+
+```css
+,.bar[svelte-680739708],.baz[svelte-680739708]{color:red}
+```
